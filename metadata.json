@@ -1,0 +1,6 @@
+{
+  "name": "Trusof Matrimony",
+  "description": "Premium dynamic matrimonial matching app built for Trusof. Includes dynamic matchmaking, client-side register search, premium tier billing, and automated cPanel code-sharing tools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

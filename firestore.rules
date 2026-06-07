@@ -1,0 +1,150 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitive Definitions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(ownerId) {
+      return isSignedIn() && request.auth.uid == ownerId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Phase 2: Structural Verification Blueprints
+    function isValidProfile(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.gender is string && (data.gender == 'Male' || data.gender == 'Female')
+        && data.age is number && data.age >= 18 && data.age <= 100
+        && data.height is string && data.height.size() <= 20
+        && data.religion is string && data.religion.size() <= 50
+        && data.caste is string && data.caste.size() <= 50
+        && data.motherTongue is string && data.motherTongue.size() <= 50
+        && data.location is string && data.location.size() <= 100
+        && data.education is string && data.education.size() <= 100
+        && data.occupation is string && data.occupation.size() <= 100
+        && data.income is string && data.income.size() <= 50
+        && data.avatar is string && data.avatar.size() <= 500
+        && data.bio is string && data.bio.size() <= 1000
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidContactInfo(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.phone is string && data.phone.size() <= 30
+        && data.email is string && data.email.size() <= 100
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidInterest(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.senderId == request.auth.uid
+        && data.receiverId is string && data.receiverId.size() <= 128
+        && data.status is string && (data.status == 'pending' || data.status == 'accepted' || data.status == 'declined');
+    }
+
+    function isValidShortlist(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.profileId is string && data.profileId.size() <= 128;
+    }
+
+    function isValidConversation(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.participants is list
+        && data.participants.size() == 2
+        && (data.participants[0] == request.auth.uid || data.participants[1] == request.auth.uid);
+    }
+
+    function isValidMessage(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.senderId == request.auth.uid
+        && data.receiverId is string && data.receiverId.size() <= 128
+        && data.text is string && data.text.size() <= 5000;
+    }
+
+    function isValidUserPrivate(data) {
+      return data.userId == request.auth.uid
+        && data.isPremium is boolean
+        && data.premiumTier is string && data.premiumTier.size() <= 100;
+    }
+
+    // Collection Security Rulesets
+    match /profiles/{profileId} {
+      // 8. Secure List Queries: validate that requests require signed in authenticated user state
+      allow read, list: if isSignedIn();
+      
+      // Strict creation verification including Temporal Integrity (createdAt/updatedAt = request.time)
+      allow create: if isSignedIn() && isValidId(profileId) && profileId == incoming().id && isValidProfile(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      
+      // Tiered update logic prevents tampering with read-only fields
+      allow update: if isSignedIn() && isValidId(profileId) && isOwner(existing().ownerId) && isValidProfile(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+                    && (incoming().diff(existing()).affectedKeys().hasOnly(['name', 'gender', 'age', 'height', 'religion', 'caste', 'subCaste', 'motherTongue', 'location', 'education', 'occupation', 'income', 'avatar', 'bio', 'horoscopeMatch', 'compatibilityScore', 'phoneVerified', 'updatedAt']));
+      
+      allow delete: if isSignedIn() && isValidId(profileId) && isOwner(existing().ownerId);
+
+      // Subcollection nested split collection to isolat PII fields (highly secure)
+      match /private/contact {
+        allow read: if isSignedIn(); // Logged-in validated users can view contact cards
+        allow create: if isSignedIn() && isValidId(profileId) && isOwner(incoming().ownerId) && isValidContactInfo(incoming());
+        allow update: if isSignedIn() && isValidId(profileId) && isOwner(existing().ownerId) && isValidContactInfo(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'email']);
+        allow delete: if isSignedIn() && isValidId(profileId) && isOwner(existing().ownerId);
+      }
+    }
+
+    match /interests/{interestId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(interestId) && interestId == incoming().id && isValidInterest(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(interestId) && (
+        // Action: Sender revokes / changes interest status
+        (isOwner(existing().senderId) && isValidInterest(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+        // Action: Receiver accepts/declines matching response
+        (isOwner(existing().receiverId) && incoming().senderId == existing().senderId && incoming().receiverId == existing().receiverId && incoming().createdAt == existing().createdAt && incoming().status is string && (incoming().status == 'accepted' || incoming().status == 'declined') && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+      );
+      allow delete: if isSignedIn() && isValidId(interestId) && (isOwner(existing().senderId) || isOwner(existing().receiverId));
+    }
+
+    match /shortlists/{shortlistId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(shortlistId) && shortlistId == incoming().id && isValidShortlist(incoming()) && incoming().createdAt == request.time;
+      allow delete: if isSignedIn() && isValidId(shortlistId) && isOwner(existing().userId);
+    }
+
+    match /conversations/{conversationId} {
+      allow read, list: if isSignedIn() && (request.auth.uid in resource.data.participants);
+      allow create: if isSignedIn() && isValidId(conversationId) && conversationId == incoming().id && isValidConversation(incoming()) && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(conversationId) && (request.auth.uid in existing().participants) && isValidConversation(incoming()) && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt']);
+      allow delete: if isSignedIn() && isValidId(conversationId) && (request.auth.uid in existing().participants);
+
+      match /messages/{messageId} {
+        allow read, list: if isSignedIn();
+        allow create: if isSignedIn() && isValidId(messageId) && messageId == incoming().id && isValidMessage(incoming()) && incoming().timestamp == request.time;
+        allow delete: if isSignedIn() && isValidId(messageId) && isOwner(existing().senderId);
+      }
+    }
+
+    match /users/{userId}/private/info {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if isSignedIn() && request.auth.uid == userId && isValidUserPrivate(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+  }
+}

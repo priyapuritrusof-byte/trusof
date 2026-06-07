@@ -1,0 +1,140 @@
+{
+  "entities": {
+    "Profile": {
+      "title": "Profile",
+      "description": "Matrimonial profile representation representing brides or grooms",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique profile document ID" },
+        "name": { "type": "string", "description": "Full name of the bride/groom" },
+        "gender": { "type": "string", "enum": ["Male", "Female"], "description": "Gender choice" },
+        "age": { "type": "number", "description": "Age of the candidate" },
+        "height": { "type": "string", "description": "Height formatted e.g., 5'11\"" },
+        "religion": { "type": "string", "description": "Religion" },
+        "caste": { "type": "string", "description": "Caste" },
+        "subCaste": { "type": "string", "description": "Sub-Caste if any" },
+        "motherTongue": { "type": "string", "description": "Mother tongue language" },
+        "location": { "type": "string", "description": "City/Region location" },
+        "education": { "type": "string", "description": "Highest level of school/degree completed" },
+        "occupation": { "type": "string", "description": "Current field of work" },
+        "income": { "type": "string", "description": "Current per annum income brackets" },
+        "avatar": { "type": "string", "description": "Profile picture portrait url" },
+        "bio": { "type": "string", "description": "Self-description summary" },
+        "verified": { "type": "boolean", "description": "Whether the profile details are vetted and verified" },
+        "premium": { "type": "boolean", "description": "Premium matching account status label" },
+        "horoscopeMatch": { "type": "string", "description": "Zodiac stars or horoscope alignment detail" },
+        "compatibilityScore": { "type": "number", "description": "Static calculated compatibility score percentage" },
+        "phoneVerified": { "type": "boolean", "description": "Whether their contact phone has been verified via OTP simulation" },
+        "ownerId": { "type": "string", "description": "UID of the firebase auth user who created this profile" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when profile was created" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Timestamp when profile was last updated" }
+      },
+      "required": ["id", "name", "gender", "age", "height", "religion", "caste", "motherTongue", "location", "education", "occupation", "income", "avatar", "bio", "ownerId", "createdAt", "updatedAt"]
+    },
+    "ContactInfo": {
+      "title": "ContactInfo",
+      "description": "Sensitive personally-identifiable contact details split to prevent scrapers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Must match the profile id" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "email": { "type": "string", "description": "Contact email address" },
+        "ownerId": { "type": "string", "description": "UID of the owner of this contact info" }
+      },
+      "required": ["id", "phone", "email", "ownerId"]
+    },
+    "Interest": {
+      "title": "Interest",
+      "description": "Interest requests sent to establish connect matching",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Document ID formulated as senderId_receiverId" },
+        "senderId": { "type": "string", "description": "The UID of the user sending interest" },
+        "receiverId": { "type": "string", "description": "The profile ID receiving the interest" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"], "description": "Status of match request" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp interest was created" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Timestamp interest was updated" }
+      },
+      "required": ["id", "senderId", "receiverId", "status", "createdAt", "updatedAt"]
+    },
+    "Shortlist": {
+      "title": "Shortlist",
+      "description": "Profile bookmarks shortlisted by users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Shortlist document ID" },
+        "userId": { "type": "string", "description": "The UID who shortlisted" },
+        "profileId": { "type": "string", "description": "The shortlisted profile ID" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when pinned" }
+      },
+      "required": ["id", "userId", "profileId", "createdAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "A conversation between two users containing participant lists",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Conversation ID" },
+        "participants": { "type": "array", "description": "Array of participant uids or profile IDs" },
+        "lastMessage": { "type": "string", "description": "Preview of the last sent message" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Timestamp when last text message arrived" }
+      },
+      "required": ["id", "participants", "lastMessage", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A single chat message document inside a conversation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Message unique ID" },
+        "senderId": { "type": "string", "description": "UID of the message author" },
+        "receiverId": { "type": "string", "description": "UID of the message recipient" },
+        "text": { "type": "string", "description": "The actual chat message string" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Time the message was sent" }
+      },
+      "required": ["id", "senderId", "receiverId", "text", "timestamp"]
+    },
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Private user account info containing VIP billing references",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "User UID matching auth" },
+        "isPremium": { "type": "boolean", "description": "Whether user is a premium member" },
+        "premiumTier": { "type": "string", "description": "Name of premium level active" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last updated" }
+      },
+      "required": ["userId", "isPremium", "premiumTier", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/profiles/{profileId}": {
+      "schema": "Profile",
+      "description": "Collection of public matrimonial profiles representing candidates"
+    },
+    "/profiles/{profileId}/private/contact": {
+      "schema": "ContactInfo",
+      "description": "PII contact database path containing phone and email"
+    },
+    "/interests/{interestId}": {
+      "schema": "Interest",
+      "description": "Collection of Match request connection expressions between profiles or users"
+    },
+    "/shortlists/{shortlistId}": {
+      "schema": "Shortlist",
+      "description": "List of pinned bookmarks saved by active seekers"
+    },
+    "/conversations/{conversationId}": {
+      "schema": "Conversation",
+      "description": "Track chat loops active between prospective candidates"
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Individual messages sent chronologically inside a safe chat conversation"
+    },
+    "/users/{userId}/private/info": {
+      "schema": "UserPrivate",
+      "description": "Billing and account security status details for current session"
+    }
+  }
+}
